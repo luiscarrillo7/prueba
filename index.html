@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificador de Estado - Cloudflare Pages</title>
+    <style>
+        :root {
+            --primary: #F6821F;
+            --secondary: #2B6CB0;
+            --light: #f7fafc;
+            --dark: #2d3748;
+            --success: #48bb78;
+            --warning: #ecc94b;
+            --error: #f56565;
+            --gray: #a0aec0;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background: linear-gradient(135deg, #f6f9fc 0%, #e9f2ff 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+        
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid var(--primary);
+        }
+        
+        .waiting-card {
+            border-left-color: var(--warning);
+            background: #fffaf0;
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .countdown {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: var(--primary);
+            margin: 20px 0;
+        }
+        
+        .progress-container {
+            height: 20px;
+            background: #edf2f7;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 25px 0;
+        }
+        
+        .status-item {
+            padding: 15px;
+            border-radius: 8px;
+            background: #f8fafc;
+            text-align: center;
+        }
+        
+        .status-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .check-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 10px 0;
+            transition: all 0.3s;
+        }
+        
+        .check-btn:hover {
+            background: #e57c1a;
+            transform: translateY(-2px);
+        }
+        
+        .results {
+            margin-top: 25px;
+            padding: 20px;
+            background: #edf2f7;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .domain-list {
+            list-style: none;
+            margin: 15px 0;
+        }
+        
+        .domain-list li {
+            padding: 10px;
+            border-bottom: 1px solid #e1e8ed;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .status-success {
+            background: var(--success);
+            color: white;
+        }
+        
+        .status-warning {
+            background: var(--warning);
+            color: var(--dark);
+        }
+        
+        .status-error {
+            background: var(--error);
+            color: white;
+        }
+        
+        .tips {
+            margin-top: 30px;
+            padding: 20px;
+            background: #e6f7ff;
+            border-radius: 8px;
+        }
+        
+        .tips h3 {
+            margin-bottom: 15px;
+            color: var(--secondary);
+        }
+        
+        .tips ul {
+            margin-left: 20px;
+        }
+        
+        .tips li {
+            margin-bottom: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .countdown {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Verificador de Estado - Cloudflare Pages</h1>
+            <p>Monitorea el progreso de tu configuración DNS</p>
+        </header>
+        
+        <div class="content">
+            <div class="card waiting-card">
+                <h2>Esperando propagación de DNS</h2>
+                <p>Los cambios de DNS pueden tardar hasta 24 horas en propagarse completamente.</p>
+                
+                <div class="countdown" id="countdown">24:00:00</div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                
+                <p>Tiempo estimado restante: <span id="remaining-time">24 horas</span></p>
+            </div>
+            
+            <div class="card">
+                <h2>Verificar estado actual</h2>
+                <p>Puedes verificar el estado de tus dominios en cualquier momento:</p>
+                
+                <button class="check-btn" onclick="checkStatus()">Verificar estado ahora</button>
+                
+                <div class="results" id="results">
+                    <h3>Resultados de la verificación</h3>
+                    <p>Estado actual de tus dominios:</p>
+                    
+                    <ul class="domain-list">
+                        <li>
+                            <span>googlealtes.cloud</span>
+                            <span class="status-badge status-warning">Propagando</span>
+                        </li>
+                        <li>
+                            <span>www.googlealtes.cloud</span>
+                            <span class="status-badge status-warning">Propagando</span>
+                        </li>
+                        <li>
+                            <span>sismed-dirisle.googlealtes.cloud</span>
+                            <span class="status-badge status-success">Activo</span>
+                        </li>
+                    </ul>
+                    
+                    <p>Nota: Los resultados son simulados y pueden no reflejar el estado real.</p>
+                </div>
+            </div>
+            
+            <div class="status-grid">
+                <div class="status-item">
+                    <div class="status-icon">🌐</div>
+                    <h3>Propagación DNS</h3>
+                    <p>El proceso de propagación puede tardar entre 1 y 24 horas.</p>
+                </div>
+                
+                <div class="status-item">
+                    <div class="status-icon">⏱️</div>
+                    <h3>Paciencia</h3>
+                    <p>Es normal experimentar tiempos de espera durante este proceso.</p>
+                </div>
+                
+                <div class="status-item">
+                    <div class="status-icon">🔍</div>
+                    <h3>Verificación</h3>
+                    <p>Puedes verificar el estado periódicamente.</p>
+                </div>
+            </div>
+            
+            <div class="tips">
+                <h3>Consejos durante la espera</h3>
+                <ul>
+                    <li>No realices más cambios en la configuración DNS durante este período</li>
+                    <li>Si después de 24 horas aún tienes problemas, verifica nuevamente tu configuración</li>
+                    <li>Recuerda que los cambios en el subdominio sismed-dirisle deberían funcionar antes que el dominio principal</li>
+                    <li>Puedes usar herramientas en línea como "DNS Checker" para ver el estado de propagación en diferentes partes del mundo</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuración del countdown
+        const totalTime = 24 * 60 * 60 * 1000; // 24 horas en milisegundos
+        let startTime = Date.now();
+        
+        function updateCountdown() {
+            const elapsed = Date.now() - startTime;
+            const remaining = totalTime - elapsed;
+            
+            if (remaining <= 0) {
+                document.getElementById('countdown').textContent = '00:00:00';
+                document.getElementById('remaining-time').textContent = 'Completado';
+                document.getElementById('progress-bar').style.width = '100%';
+                return;
+            }
+            
+            // Actualizar countdown
+            const hours = Math.floor(remaining / (1000 * 60 * 60));
+            const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+            
+            document.getElementById('countdown').textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            document.getElementById('remaining-time').textContent = 
+                `${hours} horas y ${minutes} minutos`;
+            
+            // Actualizar barra de progreso
+            const progress = ((totalTime - remaining) / totalTime) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+        }
+        
+        // Actualizar cada segundo
+        setInterval(updateCountdown, 1000);
+        updateCountdown(); // Llamada inicial
+        
+        function checkStatus() {
+            const results = document.getElementById('results');
+            results.style.display = 'block';
+            
+            // Simular diferentes estados basados en el tiempo transcurrido
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / totalTime;
+            
+            // Simular resultados basados en el progreso
+            if (progress < 0.3) {
+                // Menos del 30% de progreso
+                document.querySelectorAll('.status-badge').forEach(badge => {
+                    badge.className = 'status-badge status-warning';
+                    badge.textContent = 'Propagando';
+                });
+            } else if (progress < 0.7) {
+                // Entre 30% y 70% de progreso
+                document.querySelectorAll('.status-badge').forEach(badge => {
+                    badge.className = 'status-badge status-warning';
+                    badge.textContent = 'Propagando';
+                });
+                document.querySelector('.domain-list li:last-child .status-badge').className = 'status-badge status-success';
+                document.querySelector('.domain-list li:last-child .status-badge').textContent = 'Activo';
+            } else {
+                // Más del 70% de progreso
+                document.querySelectorAll('.status-badge').forEach(badge => {
+                    badge.className = 'status-badge status-success';
+                    badge.textContent = 'Activo';
+                });
+            }
+            
+            // Scroll to results
+            results.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
